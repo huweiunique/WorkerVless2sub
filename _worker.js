@@ -871,7 +871,7 @@ async function subHtml(request) {
 									.replace(/\//g, '_')
 									.replace(/=+$/g, '');
 								const domain = window.location.hostname;
-								subLink = `https://${domain}/sub?node64=${node64}`;
+								subLink = \`https://\${domain}/sub?node64=\${node64}\`;
 							} else {
 								const isVMess = link.startsWith('vmess://');
 							if (isVMess){
