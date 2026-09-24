@@ -782,12 +782,12 @@ async function subHtml(request) {
 						</div>
 					<div class="input-group">
 						<label for="link">节点链接</label>
-						<input type="text" id="link" placeholder="请输入 VMess / VLESS / Trojan 链接">
+						<input type="text" id="link" placeholder="请输入 VMess / VLESS / Trojan 链接" oninput="saveFormState()">
 					</div>
 					
 					<div class="input-group">
 						<label for="format">订阅格式</label>
-						<select id="format">
+						<select id="format" onchange="updateConfigVisibility(); saveFormState()">
 							<option value="base64">通用 Base64（v2rayN / Shadowrocket）</option>
 							<option value="clash">Clash / Mihomo</option>
 							<option value="singbox">sing-box</option>
@@ -795,16 +795,16 @@ async function subHtml(request) {
 						</select>
 					</div>
 					<div class="input-group" id="configGroup">
-						<label for="configPreset">Subconverter 策略模板（远程 .ini）</label>
-						<select id="configPreset" onchange="toggleCustomConfig()">
-							<option value="">使用服务默认 SUBCONFIG</option>
+						<label for="configPreset">策略配置</label>
+						<select id="configPreset" onchange="toggleCustomConfig(); saveFormState()">
+							<option value="">默认配置（ACL4SSR Full MultiMode）</option>
 							<option value="acl4ssr-multimode">ACL4SSR Full MultiMode</option>
 							<option value="acl4ssr-full">ACL4SSR Full</option>
 							<option value="enihsyou">enihsyou subconverter-config</option>
 							<option value="clashcustomrule">ClashCustomRule</option>
-							<option value="custom">自定义远程 .ini URL</option>
+							<option value="custom">自定义配置 URL</option>
 						</select>
-						<input type="url" id="configUrl" placeholder="https://raw.githubusercontent.com/.../config.ini" style="display:none; margin-top:10px;">
+						<input type="url" id="configUrl" placeholder="远程 .ini URL，例如 https://raw.githubusercontent.com/.../config.ini" style="display:none; margin-top:10px;" oninput="saveFormState()">
 					</div>
 					
 					<button onclick="generateLink()">生成优选订阅</button>
@@ -829,6 +829,33 @@ async function subHtml(request) {
 				</div>
 	
 				<script>
+					const STORAGE_KEY = 'worker-vless2sub-form-v1';
+
+					function saveFormState() {
+						try {
+							localStorage.setItem(STORAGE_KEY, JSON.stringify({
+								link: document.getElementById('link')?.value || '',
+								format: document.getElementById('format')?.value || 'base64',
+								configPreset: document.getElementById('configPreset')?.value || '',
+								configUrl: document.getElementById('configUrl')?.value || ''
+							}));
+						} catch (e) {}
+					}
+
+					function restoreFormState() {
+						try {
+							const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+							if (saved.link) document.getElementById('link').value = saved.link;
+							if (saved.format) document.getElementById('format').value = saved.format;
+							if (saved.configPreset !== undefined) document.getElementById('configPreset').value = saved.configPreset;
+							if (saved.configUrl) document.getElementById('configUrl').value = saved.configUrl;
+						} catch (e) {}
+						updateConfigVisibility();
+						toggleCustomConfig();
+					}
+
+					window.addEventListener('DOMContentLoaded', restoreFormState);
+
 					function toggleTooltip(event) {
 						event.stopPropagation(); // 阻止事件冒泡
 						const tooltip = document.getElementById('infoTooltip');
@@ -875,6 +902,12 @@ async function subHtml(request) {
 						});
 					}
 	
+					function updateConfigVisibility() {
+						const format = document.getElementById('format').value;
+						const group = document.getElementById('configGroup');
+						group.style.display = format === 'base64' ? 'none' : 'block';
+					}
+
 					function toggleCustomConfig() {
 						const preset = document.getElementById('configPreset').value;
 						const input = document.getElementById('configUrl');
