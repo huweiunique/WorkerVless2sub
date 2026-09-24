@@ -918,6 +918,131 @@ async function subHtml(request) {
 	});
 }
 
+
+const DEFAULT_BEST_IP_CSV = 'https://raw.githubusercontent.com/huweiunique/WorkerVless2sub/main/cloudflare-result.csv';
+
+function base64UrlToUtf8(value) {
+	const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+	const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+	const binary = atob(padded);
+	const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+	return new TextDecoder().decode(bytes);
+}
+
+function safeDecodeURIComponent(value) {
+	try {
+		return decodeURIComponent(value);
+	} catch {
+		return value;
+	}
+}
+
+function parseCloudflareSpeedTestCsv(text, top, minSpeed) {
+	const lines = text
+		.replace(/\r\n/g, '\n')
+		.replace(/\r/g, '\n')
+		.split('\n')
+		.map(line => line.trim())
+		.filter(Boolean);
+
+	if (lines.length < 2) return [];
+
+	const header = lines[0].split(',').map(x => x.trim());
+	const ipIndex = header.findIndex(x => /^(IP 地址|IP|地址)$/i.test(x) || x.toUpperCase().includes('IP'));
+	const latencyIndex = header.findIndex(x => x.includes('平均延迟') || /latency/i.test(x));
+	const speedIndex = header.findIndex(x => x.includes('下载速度') || /speed/i.test(x));
+	const regionIndex = header.findIndex(x => x.includes('地区码') || /region|colo|location/i.test(x));
+
+	if (ipIndex < 0) throw new Error('CloudflareSpeedTest CSV 缺少 IP 列');
+
+	return lines.slice(1).map((line, index) => {
+		const columns = line.split(',').map(x => x.trim());
+		const ip = columns[ipIndex];
+		const speed = speedIndex >= 0 ? Number(columns[speedIndex]) : 0;
+		const latency = latencyIndex >= 0 ? columns[latencyIndex] : '';
+		const region = regionIndex >= 0 ? columns[regionIndex] : '';
+		return { ip, speed, latency, region, order: index };
+	}).filter(row => row.ip && Number.isFinite(row.speed) && row.speed >= minSpeed)
+	  .sort((a, b) => (b.speed - a.speed) || (a.order - b.order))
+	  .slice(0, top);
+}
+
+function buildGenericVlessNodes(sourceLink, bestIps) {
+	let source;
+	try {
+		source = new URL(sourceLink);
+	} catch {
+		throw new Error('node/node64 不是有效的 VLESS 分享链接');
+	}
+	if (source.protocol.toLowerCase() !== 'vless:') {
+		throw new Error('通用优选入口当前仅支持 vless://');
+	}
+	if (!source.username) {
+		throw new Error('VLESS 链接缺少 UUID');
+	}
+
+	const port = source.port || '443';
+	const query = source.search || '';
+	const originalName = source.hash ? safeDecodeURIComponent(source.hash.slice(1)) : 'VLESS';
+
+	return bestIps.map((item, index) => {
+		const address = item.ip.includes(':') && !item.ip.startsWith('[') ? `[${item.ip}]` : item.ip;
+		const details = [
+			item.region || '',
+			item.latency ? `${item.latency}ms` : '',
+			item.speed ? `${item.speed}MB/s` : ''
+		].filter(Boolean).join('-');
+		const name = details ? `${originalName}-${details}` : `${originalName}-CF-${index + 1}`;
+		return `vless://${source.username}@${address}:${port}${query}#${encodeURIComponent(name)}`;
+	}).join('\n');
+}
+
+async function genericVlessSubscription(url, env) {
+	try {
+		const node64 = url.searchParams.get('node64');
+		const node = url.searchParams.get('node');
+		const sourceLink = node64 ? base64UrlToUtf8(node64) : node;
+		if (!sourceLink) {
+			return new Response(
+				'缺少 node 或 node64 参数。推荐使用 node64=URL-safe Base64(VLESS分享链接)。',
+				{ status: 400, headers: { 'content-type': 'text/plain; charset=utf-8' } }
+			);
+		}
+
+		const topValue = Number(url.searchParams.get('top') || 20);
+		const top = Math.min(Math.max(Number.isFinite(topValue) ? Math.trunc(topValue) : 20, 1), 100);
+		const minSpeedValue = Number(url.searchParams.get('minSpeed') || 0);
+		const minSpeed = Number.isFinite(minSpeedValue) ? Math.max(minSpeedValue, 0) : 0;
+		const csvUrl = env.BEST_IP_CSV || DEFAULT_BEST_IP_CSV;
+
+		const csvResponse = await fetch(csvUrl, {
+			headers: { 'User-Agent': 'WorkerVless2sub-generic-bestip' }
+		});
+		if (!csvResponse.ok) {
+			throw new Error(`无法读取优选 IP CSV: HTTP ${csvResponse.status}`);
+		}
+
+		const bestIps = parseCloudflareSpeedTestCsv(await csvResponse.text(), top, minSpeed);
+		if (bestIps.length === 0) {
+			throw new Error('优选 IP CSV 中没有符合条件的 IP');
+		}
+
+		const nodes = buildGenericVlessNodes(sourceLink, bestIps);
+		return new Response(utf8ToBase64(nodes), {
+			headers: {
+				'content-type': 'text/plain; charset=utf-8',
+				'Profile-Update-Interval': '6',
+				'Cache-Control': 'no-store'
+			}
+		});
+	} catch (error) {
+		return new Response(`Error: ${error.message}`, {
+			status: 400,
+			headers: { 'content-type': 'text/plain; charset=utf-8' }
+		});
+	}
+}
+
 export default {
 	async fetch(request, env) {
 		if (env.TOKEN) 快速订阅访问入口 = await 整理(env.TOKEN);
