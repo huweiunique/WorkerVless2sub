@@ -1081,6 +1081,9 @@ export default {
 		const userAgent = userAgentHeader ? userAgentHeader.toLowerCase() : "null";
 		const url = new URL(request.url);
 		const format = url.searchParams.get('format') ? url.searchParams.get('format').toLowerCase() : "null";
+		if (url.pathname === '/sub' && (url.searchParams.has('node') || url.searchParams.has('node64'))) {
+			return await genericVlessSubscription(url, env);
+		}
 		let host = "";
 		let uuid = "";
 		let path = "";
