@@ -867,8 +867,8 @@ async function subHtml(request) {
 						try {
 							if (link.startsWith('vless://')) {
 								const node64 = btoa(unescape(encodeURIComponent(link)))
-									.replace(/\+/g, '-')
-									.replace(/\//g, '_')
+									.split('+').join('-')
+									.split('/').join('_')
 									.replace(/=+$/g, '');
 								const domain = window.location.hostname;
 								subLink = \`https://\${domain}/sub?node64=\${node64}\`;
