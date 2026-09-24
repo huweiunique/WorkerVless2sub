@@ -1,0 +1,78 @@
+name: Vendor latest CloudflareSpeedTest
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/vendor-cfst.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download latest Windows amd64 release
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, urllib.request, zipfile, hashlib, shutil
+          api = "https://api.github.com/repos/XIU2/CloudflareSpeedTest/releases/latest"
+          req = urllib.request.Request(api, headers={"User-Agent":"WorkerVless2sub-vendor"})
+          with urllib.request.urlopen(req) as r:
+              release = json.load(r)
+
+          wanted = "cfst_windows_amd64.zip"
+          asset = next(a for a in release["assets"] if a["name"] == wanted)
+          url = asset["browser_download_url"]
+          expected = (asset.get("digest") or "").replace("sha256:","").lower()
+
+          os.makedirs("tools/CloudflareSpeedTest", exist_ok=True)
+          zip_path = "/tmp/" + wanted
+          urllib.request.urlretrieve(url, zip_path)
+
+          h = hashlib.sha256()
+          with open(zip_path, "rb") as f:
+              for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                  h.update(chunk)
+          actual = h.hexdigest()
+          if expected and actual != expected:
+              raise SystemExit(f"SHA256 mismatch: expected {expected}, got {actual}")
+
+          out = "tools/CloudflareSpeedTest"
+          for name in os.listdir(out):
+              p = os.path.join(out, name)
+              if os.path.isdir(p):
+                  shutil.rmtree(p)
+              else:
+                  os.remove(p)
+
+          with zipfile.ZipFile(zip_path) as z:
+              z.extractall(out)
+
+          with open(os.path.join(out, "VERSION.txt"), "w", encoding="utf-8") as f:
+              f.write(release["tag_name"] + "\n")
+              f.write(url + "\n")
+              f.write("sha256:" + actual + "\n")
+          PY
+
+      - name: Commit bundled release
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/CloudflareSpeedTest
+          if git diff --cached --quiet; then
+            echo "No CloudflareSpeedTest update."
+            exit 0
+          fi
+          VERSION="$(head -n 1 tools/CloudflareSpeedTest/VERSION.txt)"
+          git commit -m "chore: bundle CloudflareSpeedTest ${VERSION} [skip ci]"
+          git push
