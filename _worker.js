@@ -541,21 +541,104 @@ async function subHtml(request) {
 						font-weight: 500;
 					}
 					
-					input {
+					input,
+
+					
+					select {
+
+					
 						width: 100%;
+
+					
 						padding: 12px;
+
+					
 						border: 2px solid rgba(0, 0, 0, 0.15);
+
+					
 						border-radius: 10px;
+
+					
 						font-size: 1rem;
+
+					
 						transition: all 0.3s ease;
+
+					
 						box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.03);
+
+					
+						background-color: #fff;
+
+					
+						color: #333;
+
+					
 					}
 
-					input:focus {
+
+					
+					select {
+
+					
+						appearance: none;
+
+					
+						-webkit-appearance: none;
+
+					
+						padding-right: 42px;
+
+					
+						background-image:
+
+					
+							linear-gradient(45deg, transparent 50%, #777 50%),
+
+					
+							linear-gradient(135deg, #777 50%, transparent 50%);
+
+					
+						background-position:
+
+					
+							calc(100% - 19px) 50%,
+
+					
+							calc(100% - 14px) 50%;
+
+					
+						background-size: 5px 5px, 5px 5px;
+
+					
+						background-repeat: no-repeat;
+
+					
+						cursor: pointer;
+
+					
+					}
+
+
+					
+					input:focus,
+
+					
+					select:focus {
+
+					
 						outline: none;
+
+					
 						border-color: var(--primary-color);
+
+					
 						box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.15),
-									inset 0 2px 4px rgba(0, 0, 0, 0.03);
+
+					
+								inset 0 2px 4px rgba(0, 0, 0, 0.03);
+
+					
 					}
 					
 					button {
