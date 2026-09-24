@@ -1,6 +1,6 @@
 param(
     [string]$CloudflareST = "",
-    [int]$Top = 20,
+    [int]$Top = 10,
     [double]$MaxLatency = 200,
     [double]$MinSpeed = 5,
     [int]$MinCount = 3,
