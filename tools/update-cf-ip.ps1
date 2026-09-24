@@ -1,0 +1,65 @@
+param(
+    [string]$CloudflareST = ".\\CloudflareST.exe",
+    [int]$Top = 20,
+    [double]$MaxLatency = 200,
+    [double]$MinSpeed = 5,
+    [int]$MinCount = 3,
+    [string]$Branch = "main"
+)
+
+$ErrorActionPreference = "Stop"
+
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$workCsv = Join-Path $repoRoot "result.csv"
+$targetCsv = Join-Path $repoRoot "cloudflare-result.csv"
+
+if (-not (Test-Path $CloudflareST)) {
+    throw "找不到 CloudflareSpeedTest: $CloudflareST"
+}
+
+Push-Location $repoRoot
+try {
+    Write-Host "运行 CloudflareSpeedTest..."
+    & $CloudflareST -tl $MaxLatency -sl $MinSpeed -dn $Top -o $workCsv
+    if ($LASTEXITCODE -ne 0) {
+        throw "CloudflareSpeedTest 运行失败，退出码: $LASTEXITCODE"
+    }
+
+    if (-not (Test-Path $workCsv)) {
+        throw "未生成测速结果: $workCsv"
+    }
+
+    $rows = Import-Csv $workCsv
+    if (-not $rows -or $rows.Count -lt $MinCount) {
+        throw "有效测速结果仅 $($rows.Count) 条，小于最低要求 $MinCount；本次不覆盖旧结果。"
+    }
+
+    Copy-Item $workCsv $targetCsv -Force
+    Remove-Item $workCsv -Force
+
+    git add -- cloudflare-result.csv
+
+    git diff --cached --quiet
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "优选 IP 无变化，无需提交。"
+        exit 0
+    }
+
+    $stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    git commit -m "chore: update Cloudflare best IPs $stamp"
+    if ($LASTEXITCODE -ne 0) {
+        throw "git commit 失败"
+    }
+
+    git push origin $Branch
+    if ($LASTEXITCODE -ne 0) {
+        throw "git push 失败"
+    }
+
+    Write-Host ""
+    Write-Host "完成：cloudflare-result.csv 已更新并推送到 GitHub。"
+    Write-Host "有效 IP 数量: $($rows.Count)"
+}
+finally {
+    Pop-Location
+}
