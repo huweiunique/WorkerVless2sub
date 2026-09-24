@@ -15,6 +15,7 @@ $targetCsv = Join-Path $repoRoot "cloudflare-result.csv"
 
 if ([string]::IsNullOrWhiteSpace($CloudflareST)) {
     $candidates = @(
+        (Join-Path $repoRoot "tools\CloudflareSpeedTest\cfst.exe"),
         (Join-Path $repoRoot "cfst.exe"),
         (Join-Path $repoRoot "CloudflareST.exe"),
         (Join-Path $PSScriptRoot "cfst.exe"),
