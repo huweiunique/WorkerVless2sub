@@ -785,6 +785,16 @@ async function subHtml(request) {
 						<input type="text" id="link" placeholder="请输入 VMess / VLESS / Trojan 链接">
 					</div>
 					
+					<div class="input-group">
+						<label for="format">订阅格式</label>
+						<select id="format">
+							<option value="base64">通用 Base64（v2rayN / Shadowrocket）</option>
+							<option value="clash">Clash / Mihomo</option>
+							<option value="singbox">sing-box</option>
+							<option value="surge">Surge</option>
+						</select>
+					</div>
+					
 					<button onclick="generateLink()">生成优选订阅</button>
 					
 					<div class="input-group">
@@ -871,7 +881,8 @@ async function subHtml(request) {
 									.split('/').join('_')
 									.replace(/=+$/g, '');
 								const domain = window.location.hostname;
-								subLink = \`https://\${domain}/sub?node64=\${node64}\`;
+								const format = document.getElementById('format').value;
+								subLink = \`https://\${domain}/sub?node64=\${node64}\${format !== 'base64' ? '&format=' + encodeURIComponent(format) : ''}\`;
 							} else {
 								const isVMess = link.startsWith('vmess://');
 							if (isVMess){
@@ -1037,9 +1048,42 @@ async function genericVlessSubscription(url, env) {
 		}
 
 		const nodes = buildGenericVlessNodes(sourceLink, bestIps);
-		return new Response(utf8ToBase64(nodes), {
+		const base64Body = utf8ToBase64(nodes);
+		const requestedFormat = (url.searchParams.get('format') || 'base64').toLowerCase();
+
+		if (['base64', 'v2ray', 'v2rayn', 'shadowrocket'].includes(requestedFormat)) {
+			return new Response(base64Body, {
+				headers: {
+					'content-type': 'text/plain; charset=utf-8',
+					'Profile-Update-Interval': '6',
+					'Cache-Control': 'no-store'
+				}
+			});
+		}
+
+		const targetMap = { clash: 'clash', mihomo: 'clash', singbox: 'singbox', 'sing-box': 'singbox', surge: 'surge' };
+		const target = targetMap[requestedFormat];
+		if (!target) throw new Error('不支持的 format，仅支持 base64、clash、singbox、surge');
+
+		const sourceUrl = new URL(url.toString());
+		sourceUrl.searchParams.delete('format');
+		let converterBase = env.SUBAPI || subConverter;
+		if (!converterBase.includes('://')) converterBase = subProtocol + '://' + converterBase;
+		let converterUrl = converterBase + '/sub?target=' + encodeURIComponent(target)
+			+ '&url=' + encodeURIComponent(sourceUrl.toString())
+			+ '&insert=false&emoji=true&list=false&tfo=false&scv=false&fdn=false&sort=false&new_name=true';
+		const converterConfig = env.SUBCONFIG || subConfig;
+		if (converterConfig) converterUrl += '&config=' + encodeURIComponent(converterConfig);
+		if (target === 'surge') converterUrl += '&ver=4&udp=false&expand=true';
+
+		const converted = await fetch(converterUrl, {
+			headers: { 'User-Agent': 'WorkerVless2sub-generic-converter' }
+		});
+		if (!converted.ok) throw new Error('订阅转换失败: HTTP ' + converted.status);
+		const convertedBody = await converted.text();
+		return new Response(convertedBody, {
 			headers: {
-				'content-type': 'text/plain; charset=utf-8',
+				'content-type': target === 'singbox' ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8',
 				'Profile-Update-Interval': '6',
 				'Cache-Control': 'no-store'
 			}
