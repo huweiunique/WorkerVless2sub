@@ -31,9 +31,19 @@ if (-not $CloudflareST -or -not (Test-Path $CloudflareST)) {
 Push-Location $repoRoot
 try {
     Write-Host "运行 CloudflareSpeedTest: $CloudflareST"
-    & $CloudflareST -tl $MaxLatency -tlr 0 -sl $MinSpeed -dn $Top -o $workCsv
-    if ($LASTEXITCODE -ne 0) {
-        throw "CloudflareSpeedTest 运行失败，退出码: $LASTEXITCODE"
+
+    $cfstDir = Split-Path -Parent $CloudflareST
+    $cfstExe = Split-Path -Leaf $CloudflareST
+
+    Push-Location $cfstDir
+    try {
+        & ".\$cfstExe" -tl $MaxLatency -tlr 0 -sl $MinSpeed -dn $Top -o $workCsv
+        if ($LASTEXITCODE -ne 0) {
+            throw "CloudflareSpeedTest 运行失败，退出码: $LASTEXITCODE"
+        }
+    }
+    finally {
+        Pop-Location
     }
 
     if (-not (Test-Path $workCsv)) {
