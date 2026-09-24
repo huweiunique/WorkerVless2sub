@@ -641,6 +641,21 @@ async function subHtml(request) {
 					
 					}
 					
+					.input-group select {
+						display: block;
+						width: 100% !important;
+						height: 56px;
+						min-height: 56px;
+						padding: 12px 42px 12px 14px;
+						border: 2px solid rgba(0, 0, 0, 0.15);
+						border-radius: 10px;
+						font-size: 1rem;
+						line-height: 1.5;
+						box-sizing: border-box;
+						background-color: #fff;
+						color: #333;
+					}
+
 					button {
 						width: 100%;
 						padding: 12px;
