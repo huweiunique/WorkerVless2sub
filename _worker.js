@@ -794,6 +794,18 @@ async function subHtml(request) {
 							<option value="surge">Surge</option>
 						</select>
 					</div>
+					<div class="input-group" id="configGroup">
+						<label for="configPreset">Subconverter 策略模板（远程 .ini）</label>
+						<select id="configPreset" onchange="toggleCustomConfig()">
+							<option value="">使用服务默认 SUBCONFIG</option>
+							<option value="acl4ssr-multimode">ACL4SSR Full MultiMode</option>
+							<option value="acl4ssr-full">ACL4SSR Full</option>
+							<option value="enihsyou">enihsyou subconverter-config</option>
+							<option value="clashcustomrule">ClashCustomRule</option>
+							<option value="custom">自定义远程 .ini URL</option>
+						</select>
+						<input type="url" id="configUrl" placeholder="https://raw.githubusercontent.com/.../config.ini" style="display:none; margin-top:10px;">
+					</div>
 					
 					<button onclick="generateLink()">生成优选订阅</button>
 					
@@ -863,6 +875,23 @@ async function subHtml(request) {
 						});
 					}
 	
+					function toggleCustomConfig() {
+						const preset = document.getElementById('configPreset').value;
+						const input = document.getElementById('configUrl');
+						input.style.display = preset === 'custom' ? 'block' : 'none';
+					}
+
+					function getConfigParam() {
+						const preset = document.getElementById('configPreset').value;
+						if (!preset) return '';
+						if (preset === 'custom') {
+							const value = document.getElementById('configUrl').value.trim();
+							if (!value) throw new Error('请输入远程 .ini URL');
+							return '&config=' + encodeURIComponent(value);
+						}
+						return '&configPreset=' + encodeURIComponent(preset);
+					}
+
 					function generateLink() {
 						const link = document.getElementById('link').value;
 						if (!link) {
@@ -882,7 +911,8 @@ async function subHtml(request) {
 									.replace(/=+$/g, '');
 								const domain = window.location.hostname;
 								const format = document.getElementById('format').value;
-								subLink = \`https://\${domain}/sub?node64=\${node64}\${format !== 'base64' ? '&format=' + encodeURIComponent(format) : ''}\`;
+								const configParam = format !== 'base64' ? getConfigParam() : '';
+								subLink = \`https://\${domain}/sub?node64=\${node64}\${format !== 'base64' ? '&format=' + encodeURIComponent(format) : ''}\${configParam}\`;
 							} else {
 								const isVMess = link.startsWith('vmess://');
 							if (isVMess){
@@ -940,6 +970,13 @@ async function subHtml(request) {
 
 
 const DEFAULT_BEST_IP_CSV = 'https://raw.githubusercontent.com/huweiunique/WorkerVless2sub/main/cloudflare-result.csv';
+
+const SUBCONFIG_PRESETS = {
+  'acl4ssr-multimode': 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini',
+  'acl4ssr-full': 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full.ini',
+  'enihsyou': 'https://raw.githubusercontent.com/enihsyou/subconverter/main/subconverter-config.ini',
+  'clashcustomrule': 'https://raw.githubusercontent.com/chinnsenn/ClashCustomRule/master/config/subconverter.ini'
+};
 
 function base64UrlToUtf8(value) {
 	const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
@@ -1072,7 +1109,15 @@ async function genericVlessSubscription(url, env) {
 		let converterUrl = converterBase + '/sub?target=' + encodeURIComponent(target)
 			+ '&url=' + encodeURIComponent(sourceUrl.toString())
 			+ '&insert=false&emoji=true&list=false&tfo=false&scv=false&fdn=false&sort=false&new_name=true';
-		const converterConfig = env.SUBCONFIG || subConfig;
+		const configUrlParam = url.searchParams.get('config');
+		const configPreset = url.searchParams.get('configPreset');
+		let converterConfig = configUrlParam || (configPreset ? SUBCONFIG_PRESETS[configPreset] : null) || env.SUBCONFIG || subConfig;
+		if (configUrlParam) {
+			let parsedConfigUrl;
+			try { parsedConfigUrl = new URL(configUrlParam); } catch { throw new Error('config 必须是有效的远程 URL'); }
+			if (!['http:', 'https:'].includes(parsedConfigUrl.protocol)) throw new Error('config 仅支持 http/https 远程 URL');
+		}
+		if (configPreset && !SUBCONFIG_PRESETS[configPreset]) throw new Error('未知的 configPreset');
 		if (converterConfig) converterUrl += '&config=' + encodeURIComponent(converterConfig);
 		if (target === 'surge') converterUrl += '&ver=4&udp=false&expand=true';
 
