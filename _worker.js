@@ -644,9 +644,7 @@ async function subHtml(request) {
 					.input-group select {
 						display: block;
 						width: 100% !important;
-						height: 56px;
-						min-height: 56px;
-						padding: 12px 42px 12px 14px;
+						padding: 12px 42px 12px 12px;
 						border: 2px solid rgba(0, 0, 0, 0.15);
 						border-radius: 10px;
 						font-size: 1rem;
