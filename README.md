@@ -6,6 +6,104 @@
 > 注意！这是一个**公益服务项目**，请不要将私人节点放入`LINK`变量，这会让所有人都能获得此节点！！！
 
 > Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)
+## 🧩 通用 VLESS 优选订阅模式（本 Fork 新增）
+
+这个 Fork 支持完全不在 Cloudflare 环境变量中保存正式 VLESS 节点信息。
+
+服务只维护一份优选 IP 数据源：
+
+```
+cloudflare-result.csv
+```
+
+正式 VLESS 节点在请求时传入，Worker 只会把原节点的连接地址替换为优选 IP，其他参数（UUID、SNI、Host、Path、type、flow 等）沿用原链接。
+
+### 推荐接口
+
+```
+/sub?node64=<URL-safe Base64后的完整VLESS链接>
+```
+
+也兼容：
+
+```
+/sub?node=<URL编码后的完整VLESS链接>
+```
+
+可选参数：
+
+- `top`：最多生成多少个优选节点，默认 20，最大 100。
+- `minSpeed`：订阅端再次过滤 CloudflareSpeedTest 下载速度，默认 0。
+
+例如：
+
+```
+https://你的订阅域名/sub?node64=xxxxx&top=20&minSpeed=5
+```
+
+> `node64` 只是编码，不是加密。它可以避免复杂 VLESS URL 中的 `&`、`#` 等字符破坏查询参数，但 URL 仍可能出现在浏览器历史、访问日志或分析系统中。如果节点信息非常敏感，请把订阅域名和 URL 当作私密凭据保管。
+
+### 优选 IP 数据源
+
+默认读取本仓库：
+
+```
+https://raw.githubusercontent.com/huweiunique/WorkerVless2sub/main/cloudflare-result.csv
+```
+
+如以后需要换数据源，可设置可选环境变量：
+
+```
+BEST_IP_CSV=https://example.com/result.csv
+```
+
+CSV 直接兼容 XIU2/CloudflareSpeedTest 原生输出格式：
+
+```csv
+IP 地址,已发送,已接收,丢包率,平均延迟,下载速度(MB/s),地区码
+104.27.200.69,4,4,0.00,146.23,28.64,LAX
+```
+
+### Windows 本地一键测速并上传 GitHub
+
+把 CloudflareSpeedTest 的 `cfst.exe` 放到仓库根目录，然后执行：
+
+```powershell
+.\tools\update-cf-ip.ps1
+```
+
+默认参数：
+
+- 平均延迟 <= 200 ms
+- 丢包率 = 0
+- 下载速度 >= 5 MB/s
+- 下载测速数量 20
+- 至少得到 3 条有效结果，否则不会覆盖旧 CSV
+
+也可以自定义：
+
+```powershell
+.\tools\update-cf-ip.ps1 -Top 30 -MaxLatency 180 -MinSpeed 8 -MinCount 5
+```
+
+脚本会依次完成：
+
+```
+CloudflareSpeedTest
+→ 生成 result.csv
+→ 校验结果
+→ 覆盖 cloudflare-result.csv
+→ git add
+→ git commit
+→ git push
+```
+
+因此后续日常操作只需要运行一次脚本，然后客户端更新订阅即可。
+
+CloudflareSpeedTest 官方参数中，`-tl` 是平均延迟上限、`-tlr 0` 会过滤任何丢包、`-sl` 是下载速度下限、`-dn` 是下载测速数量、`-o` 指定输出 CSV。官方结果最终会按下载速度排序。  
+
+---
+
 ## 🔧 部署方法
 ### 🛠 Pages Github 部署 [视频教程](https://www.youtube.com/watch?v=p-KhFJAC4WQ&t=509s)
 <details>
