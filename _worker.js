@@ -865,7 +865,15 @@ async function subHtml(request) {
 						if (是特洛伊) uuidType = 'password';
 						let subLink = '';
 						try {
-							const isVMess = link.startsWith('vmess://');
+							if (link.startsWith('vless://')) {
+								const node64 = btoa(unescape(encodeURIComponent(link)))
+									.replace(/\+/g, '-')
+									.replace(/\//g, '_')
+									.replace(/=+$/g, '');
+								const domain = window.location.hostname;
+								subLink = `https://${domain}/sub?node64=${node64}`;
+							} else {
+								const isVMess = link.startsWith('vmess://');
 							if (isVMess){
 								const vmessLink = link.split('vmess://')[1];
 								const vmessJson = JSON.parse(atob(vmessLink));
@@ -887,6 +895,7 @@ async function subHtml(request) {
 								const domain = window.location.hostname;
 								
 								subLink = \`https://\${domain}/sub?\${uuidType}=\${uuid}&\${search}\`;
+							}
 							}
 							document.getElementById('result').value = subLink;
 	
