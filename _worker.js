@@ -1041,7 +1041,9 @@ async function subHtml(request) {
 								const domain = window.location.hostname;
 								const format = document.getElementById('format').value;
 								const configParam = format !== 'base64' ? getConfigParam() : '';
-								subLink = \`https://\${domain}/sub?node64=\${node64}\${format !== 'base64' ? '&format=' + encodeURIComponent(format) : ''}\${configParam}\`;
+								const accessToken = new URLSearchParams(window.location.search).get('token') || '';
+								const tokenParam = accessToken ? '&token=' + encodeURIComponent(accessToken) : '';
+								subLink = `https://${domain}/sub?node64=${node64}${format !== 'base64' ? '&format=' + encodeURIComponent(format) : ''}${configParam}${tokenParam}`;
 							} else {
 								const isVMess = link.startsWith('vmess://');
 							if (isVMess){
@@ -1386,8 +1388,26 @@ async function genericVlessSubscription(url, env) {
 	}
 }
 
+function isAuthorizedRequest(request, env) {
+	const requiredToken = env.ACCESS_TOKEN || '';
+	if (!requiredToken) return true;
+
+	const url = new URL(request.url);
+	const queryToken = url.searchParams.get('token') || '';
+	const auth = request.headers.get('Authorization') || '';
+	const bearer = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';
+
+	return queryToken === requiredToken || bearer === requiredToken;
+}
+
 export default {
 	async fetch(request, env) {
+		if (!isAuthorizedRequest(request, env)) {
+			return new Response('Unauthorized', {
+				status: 401,
+				headers: { 'content-type': 'text/plain; charset=utf-8' }
+			});
+		}
 		if (env.TOKEN) 快速订阅访问入口 = await 整理(env.TOKEN);
 		BotToken = env.TGTOKEN || BotToken;
 		ChatID = env.TGID || ChatID;
