@@ -1,0 +1,16 @@
+services:
+  worker-vless2sub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: worker-vless2sub
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      PORT: "8787"
+      ACCESS_TOKEN: "${ACCESS_TOKEN:-}"
+      SUBAPI: "${SUBAPI:-}"
+      SUBCONFIG: "${SUBCONFIG:-}"
+      BEST_IP_CSV: "${BEST_IP_CSV:-}"
+      FIXED_ADDRESSES_URL: "${FIXED_ADDRESSES_URL:-}"
