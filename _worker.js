@@ -1168,8 +1168,24 @@ function buildGenericVlessNodes(sourceLink, bestIps) {
 	}
 
 	const port = source.port || '443';
-	const query = source.search || '';
+	const originalServerHost = source.hostname;
 	const originalName = source.hash ? safeDecodeURIComponent(source.hash.slice(1)) : 'VLESS';
+
+	const baseParams = new URLSearchParams(source.search);
+	const transportType = (baseParams.get('type') || '').toLowerCase();
+
+	if (!baseParams.get('host') && originalServerHost && !isValidIPv4(originalServerHost)) {
+		if (transportType === 'ws' || transportType === 'http' || transportType === 'httpupgrade' || transportType === 'xhttp' || transportType === 'splithttp' || transportType === '') {
+			baseParams.set('host', originalServerHost);
+		}
+	}
+
+	const security = (baseParams.get('security') || '').toLowerCase();
+	if (!baseParams.get('sni') && originalServerHost && !isValidIPv4(originalServerHost) && (security === 'tls' || security === 'reality')) {
+		baseParams.set('sni', originalServerHost);
+	}
+
+	const query = baseParams.toString() ? '?' + baseParams.toString() : '';
 
 	return bestIps.map((item, index) => {
 		const address = item.ip.includes(':') && !item.ip.startsWith('[') ? `[${item.ip}]` : item.ip;
