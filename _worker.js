@@ -1253,8 +1253,28 @@ async function genericVlessSubscription(url, env) {
 		const converted = await fetch(converterUrl, {
 			headers: { 'User-Agent': 'WorkerVless2sub-generic-converter' }
 		});
-		if (!converted.ok) throw new Error('订阅转换失败: HTTP ' + converted.status);
 		const convertedBody = await converted.text();
+		if (!converted.ok) {
+			const detail = convertedBody.trim().slice(0, 2000);
+			throw new Error('订阅转换失败: HTTP ' + converted.status + (detail ? '\nSubconverter: ' + detail : ''));
+		}
+
+		if (target === 'singbox') {
+			try {
+				JSON.parse(convertedBody);
+			} catch {
+				throw new Error('sing-box 转换返回的不是有效 JSON，Subconverter 返回：\n' + convertedBody.slice(0, 2000));
+			}
+		} else if (target === 'clash') {
+			if (!/(^|\n)(proxies|proxy-groups|rules):/m.test(convertedBody)) {
+				throw new Error('Clash 转换结果不像有效 YAML，Subconverter 返回：\n' + convertedBody.slice(0, 2000));
+			}
+		} else if (target === 'surge') {
+			if (!/\[(General|Proxy|Proxy Group|Rule)\]/i.test(convertedBody)) {
+				throw new Error('Surge 转换结果不像有效配置，Subconverter 返回：\n' + convertedBody.slice(0, 2000));
+			}
+		}
+
 		return new Response(convertedBody, {
 			headers: {
 				'content-type': target === 'singbox' ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8',
