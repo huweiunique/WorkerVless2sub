@@ -1099,6 +1099,7 @@ async function subHtml(request) {
 
 
 const DEFAULT_BEST_IP_CSV = 'https://raw.githubusercontent.com/huweiunique/WorkerVless2sub/main/cloudflare-result.csv';
+const DEFAULT_FIXED_ADDRESSES_URL = 'https://raw.githubusercontent.com/huweiunique/WorkerVless2sub/main/fixed-addresses.txt';
 
 const SUBCONFIG_PRESETS = {
   'acl4ssr-multimode': 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini',
@@ -1153,6 +1154,53 @@ function parseCloudflareSpeedTestCsv(text, top, minSpeed) {
 	  .slice(0, top);
 }
 
+function parseFixedAddresses(text) {
+	return text
+		.replace(/\r\n/g, '\n')
+		.replace(/\r/g, '\n')
+		.split('\n')
+		.map(line => line.trim())
+		.filter(line => line && !line.startsWith('#'))
+		.map((line, index) => {
+			let value = line;
+			let remark = '';
+			const hashIndex = value.indexOf('#');
+			if (hashIndex >= 0) {
+				remark = value.slice(hashIndex + 1).trim();
+				value = value.slice(0, hashIndex).trim();
+			}
+			if (!value) return null;
+
+			let host = value;
+			let port = '';
+			if (value.startsWith('[')) {
+				const close = value.indexOf(']');
+				if (close > 0) {
+					host = value.slice(1, close);
+					if (value[close + 1] === ':') port = value.slice(close + 2).trim();
+				}
+			} else {
+				const colonCount = (value.match(/:/g) || []).length;
+				if (colonCount === 1) {
+					const splitAt = value.lastIndexOf(':');
+					host = value.slice(0, splitAt).trim();
+					port = value.slice(splitAt + 1).trim();
+				}
+			}
+
+			return {
+				ip: host,
+				port,
+				region: remark || 'FIXED',
+				latency: '',
+				speed: 0,
+				order: index,
+				fixed: true
+			};
+		})
+		.filter(Boolean);
+}
+
 function buildGenericVlessNodes(sourceLink, bestIps) {
 	let source;
 	try {
@@ -1189,13 +1237,14 @@ function buildGenericVlessNodes(sourceLink, bestIps) {
 
 	return bestIps.map((item, index) => {
 		const address = item.ip.includes(':') && !item.ip.startsWith('[') ? `[${item.ip}]` : item.ip;
+		const effectivePort = item.port || port;
 		const details = [
 			item.region || '',
 			item.latency ? `${item.latency}ms` : '',
 			item.speed ? `${item.speed}MB/s` : ''
 		].filter(Boolean).join('-');
 		const name = details ? `${originalName}-${details}` : `${originalName}-CF-${index + 1}`;
-		return `vless://${source.username}@${address}:${port}${query}#${encodeURIComponent(name)}`;
+		return `vless://${source.username}@${address}:${effectivePort}${query}#${encodeURIComponent(name)}`;
 	}).join('\n');
 }
 
@@ -1217,19 +1266,50 @@ async function genericVlessSubscription(url, env) {
 		const minSpeed = Number.isFinite(minSpeedValue) ? Math.max(minSpeedValue, 0) : 0;
 		const csvUrl = env.BEST_IP_CSV || DEFAULT_BEST_IP_CSV;
 
-		const csvResponse = await fetch(csvUrl, {
-			headers: { 'User-Agent': 'WorkerVless2sub-generic-bestip' }
-		});
-		if (!csvResponse.ok) {
-			throw new Error(`无法读取优选 IP CSV: HTTP ${csvResponse.status}`);
+		let bestIps = [];
+		try {
+			const csvResponse = await fetch(csvUrl, {
+				headers: { 'User-Agent': 'WorkerVless2sub-generic-bestip' }
+			});
+			if (csvResponse.ok) {
+				bestIps = parseCloudflareSpeedTestCsv(await csvResponse.text(), top, minSpeed);
+			} else {
+				console.warn('无法读取优选 IP CSV: HTTP ' + csvResponse.status);
+			}
+		} catch (error) {
+			console.warn('读取优选 IP CSV 失败:', error);
 		}
 
-		const bestIps = parseCloudflareSpeedTestCsv(await csvResponse.text(), top, minSpeed);
-		if (bestIps.length === 0) {
-			throw new Error('优选 IP CSV 中没有符合条件的 IP');
+		let fixedAddresses = [];
+		const fixedUrl = env.FIXED_ADDRESSES_URL || DEFAULT_FIXED_ADDRESSES_URL;
+		try {
+			const fixedResponse = await fetch(fixedUrl, {
+				headers: { 'User-Agent': 'WorkerVless2sub-fixed-addresses' }
+			});
+			if (fixedResponse.ok) {
+				fixedAddresses = parseFixedAddresses(await fixedResponse.text());
+			} else {
+				console.warn('无法读取固定地址: HTTP ' + fixedResponse.status);
+			}
+		} catch (error) {
+			console.warn('读取固定地址失败:', error);
 		}
 
-		const nodes = buildGenericVlessNodes(sourceLink, bestIps);
+		const merged = [];
+		const seen = new Set();
+		for (const item of fixedAddresses.concat(bestIps)) {
+			const key = (item.ip + ':' + (item.port || '')).toLowerCase();
+			if (!seen.has(key)) {
+				seen.add(key);
+				merged.push(item);
+			}
+		}
+
+		if (merged.length === 0) {
+			throw new Error('固定地址和优选 IP CSV 中都没有可用地址');
+		}
+
+		const nodes = buildGenericVlessNodes(sourceLink, merged);
 		const base64Body = utf8ToBase64(nodes);
 		const requestedFormat = (url.searchParams.get('format') || 'base64').toLowerCase();
 
