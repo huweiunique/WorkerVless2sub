@@ -1,5 +1,6 @@
 services:
   worker-vless2sub:
+    image: worker-vless2sub:latest
     build:
       context: .
       dockerfile: Dockerfile

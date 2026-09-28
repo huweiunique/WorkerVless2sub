@@ -8,6 +8,14 @@
 > Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)
 ## 🧩 通用 VLESS 优选订阅模式（本 Fork 新增）
 
+### Linux / 1Panel 构建并更新运行中容器
+
+在服务器仓库目录执行 `bash build.sh`：拉取代码 → 记录使用旧镜像的运行中容器 → 构建 `worker-vless2sub:latest` → 按原 Compose 编排重建并启动对应服务 → 清理旧镜像。没有匹配容器时只构建，构建失败不会替换容器。
+
+1Panel/Compose 编排中的镜像应为 `worker-vless2sub:latest`。脚本读取容器标签中的原项目、编排路径和环境文件，只更新匹配服务并保留运行中的副本数量，不生成额外配置文件。端口、挂载及环境变量以原编排及环境文件为准。`docker restart` 不能切换镜像，因此这里实际执行的是重建并启动。直接 `docker run` 启动的容器无法由此脚本自动重建，会明确报错。
+
+隔离检查：`bash tests/build.test.sh`（模拟 Docker/Git，不操作真实容器）。Windows 的 `tools/docker-build.ps1` 仍只负责本地构建。
+
 这个 Fork 支持完全不在 Cloudflare 环境变量中保存正式 VLESS 节点信息。
 
 服务只维护一份优选 IP 数据源：
