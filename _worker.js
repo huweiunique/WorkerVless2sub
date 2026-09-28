@@ -335,7 +335,7 @@ async function MD5MD5(text) {
 	const secondPassArray = Array.from(new Uint8Array(secondPass));
 	const secondHex = secondPassArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-	return secondHex.toLowerCase();
+	return secondHex.slice(0, 32).toLowerCase();
 }
 
 function revertFakeInfo(content, userID, hostName) {
