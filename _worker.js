@@ -1043,7 +1043,7 @@ async function subHtml(request) {
 								const configParam = format !== 'base64' ? getConfigParam() : '';
 								const accessToken = new URLSearchParams(window.location.search).get('token') || '';
 								const tokenParam = accessToken ? '&token=' + encodeURIComponent(accessToken) : '';
-								subLink = `https://${domain}/sub?node64=${node64}${format !== 'base64' ? '&format=' + encodeURIComponent(format) : ''}${configParam}${tokenParam}`;
+								subLink = 'https://' + domain + '/sub?node64=' + node64 + (format !== 'base64' ? '&format=' + encodeURIComponent(format) : '') + configParam + tokenParam;
 							} else {
 								const isVMess = link.startsWith('vmess://');
 							if (isVMess){
