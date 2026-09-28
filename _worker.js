@@ -327,11 +327,11 @@ function getRandomProxyByMatch(CC, socks5Data) {
 async function MD5MD5(text) {
 	const encoder = new TextEncoder();
 
-	const firstPass = await crypto.subtle.digest('MD5', encoder.encode(text));
+	const firstPass = await crypto.subtle.digest('SHA-256', encoder.encode(text));
 	const firstPassArray = Array.from(new Uint8Array(firstPass));
 	const firstHex = firstPassArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-	const secondPass = await crypto.subtle.digest('MD5', encoder.encode(firstHex.slice(7, 27)));
+	const secondPass = await crypto.subtle.digest('SHA-256', encoder.encode(firstHex.slice(7, 27)));
 	const secondPassArray = Array.from(new Uint8Array(secondPass));
 	const secondHex = secondPassArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
