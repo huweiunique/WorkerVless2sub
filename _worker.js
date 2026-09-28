@@ -1231,6 +1231,11 @@ function buildGenericVlessNodes(sourceLink, bestIps) {
 	}
 
 	const security = (baseParams.get('security') || '').toLowerCase();
+	// 普通 TLS 链接可能混入 REALITY 参数，Shadowrocket 会保留这些参数并影响连接。
+	if (security === 'tls') {
+		baseParams.delete('pbk');
+		baseParams.delete('sid');
+	}
 	if (!baseParams.get('sni') && originalServerHost && !isValidIPv4(originalServerHost) && (security === 'tls' || security === 'reality')) {
 		baseParams.set('sni', originalServerHost);
 	}
