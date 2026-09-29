@@ -10,6 +10,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$TestUrl = $env:BEST_IP_TEST_URL
+# 官方 speed.cloudflare.com 超过约 95MB 会 403，小文件测不满高带宽。
+# 采用 CloudflareSpeedTest#168 公益地址：Parallels 300MB（Server: cloudflare）。
+if ([string]::IsNullOrWhiteSpace($TestUrl)) { $TestUrl = "https://download.parallels.com/desktop/v17/17.1.1-51537/ParallelsDesktop-17.1.1-51537.dmg" }
+# 该地址 DYNAMIC 未缓存，HTTPing 延迟会虚高并误杀节点；默认 TCPing 延迟 + 下载取地区码。
+$UseHttping = $env:BEST_IP_HTTPING -eq '1'
+
 function Resolve-MaxNodes {
     param([int]$Requested)
     if ($Requested -gt 0) { return $Requested }
@@ -154,15 +161,18 @@ try {
         }
     }
 
+    $httpingArgs = @()
+    if ($UseHttping) { $httpingArgs = @("-httping", "-httping-code", "200") }
+
     # 第一轮：默认 IP 池，最多测出 MaxNodes 条合格结果
-    Invoke-Cfst -Label "默认池" -Arguments @(
-        "-httping",
+    Invoke-Cfst -Label "默认池" -Arguments @($httpingArgs + @(
+        "-url", $TestUrl,
         "-tl", "$MaxLatency",
         "-tlr", "0",
         "-sl", "$MinSpeed",
         "-dn", "$maxNodes",
         "-o", $workNewCsv
-    )
+    ))
 
     if (-not (Test-Path $workNewCsv)) {
         throw "未生成测速结果: $workNewCsv"
@@ -185,15 +195,15 @@ try {
     if ($prevIps.Count -gt 0) {
         Set-Content -Path $prevIpsFile -Value $prevIps -Encoding UTF8
         try {
-            Invoke-Cfst -Label "上一轮 IP 复测" -Arguments @(
-                "-httping",
+            Invoke-Cfst -Label "上一轮 IP 复测" -Arguments @($httpingArgs + @(
+                "-url", $TestUrl,
                 "-f", $prevIpsFile,
                 "-tl", "$MaxLatency",
                 "-tlr", "0",
                 "-sl", "$MinSpeed",
                 "-dn", "$($prevIps.Count)",
                 "-o", $workPrevCsv
-            )
+            ))
             if (Test-Path $workPrevCsv) {
                 $prevRows = Import-SpeedRows -Path $workPrevCsv
             }
