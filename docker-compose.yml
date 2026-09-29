@@ -15,3 +15,4 @@ services:
       SUBCONFIG: "${SUBCONFIG:-}"
       BEST_IP_CSV: "${BEST_IP_CSV:-}"
       FIXED_ADDRESSES_URL: "${FIXED_ADDRESSES_URL:-}"
+      BEST_IP_MAX: "${BEST_IP_MAX:-}"

@@ -40,13 +40,13 @@ cloudflare-result.csv
 
 可选参数：
 
-- `top`：最多生成多少个优选节点，默认 20，最大 100。
+- `top`：最多生成多少个优选节点，默认取部署环境变量 `BEST_IP_MAX`（未设置时为 30），最大 100。
 - `minSpeed`：订阅端再次过滤 CloudflareSpeedTest 下载速度，默认 0。
 
 例如：
 
 ```
-https://你的订阅域名/sub?node64=xxxxx&top=20&minSpeed=5
+https://你的订阅域名/sub?node64=xxxxx&top=30&minSpeed=5
 ```
 
 > `node64` 只是编码，不是加密。它可以避免复杂 VLESS URL 中的 `&`、`#` 等字符破坏查询参数，但 URL 仍可能出现在浏览器历史、访问日志或分析系统中。如果节点信息非常敏感，请把订阅域名和 URL 当作私密凭据保管。
@@ -89,26 +89,28 @@ IP 地址,已发送,已接收,丢包率,平均延迟,下载速度(MB/s),地区�
 - 平均延迟 <= 200 ms
 - 丢包率 = 0
 - 下载速度 >= 5 MB/s
-- 下载测速数量 10
+- 节点上限 30（可用环境变量 `BEST_IP_MAX` 或参数 `-MaxNodes` 调整）
 - 至少得到 3 条有效结果，否则不会覆盖旧 CSV
 
 也可以自定义：
 
 ```powershell
-.\tools\update-cf-ip.ps1 -Top 30 -MaxLatency 180 -MinSpeed 8 -MinCount 5
+.\tools\update-cf-ip.ps1 -MaxNodes 30 -MaxLatency 180 -MinSpeed 8 -MinCount 5
 ```
 
 脚本会依次完成：
 
 ```
-CloudflareSpeedTest
-→ 生成 result.csv
-→ 校验结果
-→ 覆盖 cloudflare-result.csv
+CloudflareSpeedTest（默认 IP 池）
+→ 复测上一轮 cloudflare-result.csv 中的 IP
+→ 合并去重，按下载速度排序
+→ 截断到节点上限，写入 cloudflare-result.csv
 → git add
 → git commit
 → git push
 ```
+
+新跑结果与上一轮 IP 的复测结果会合并保留，不再整表覆盖；不能连通或未达到本轮阈值的 IP 不会进入结果。超过节点上限时，排序靠后的自动移除。
 
 因此后续日常操作只需要运行一次脚本，然后客户端更新订阅即可。
 

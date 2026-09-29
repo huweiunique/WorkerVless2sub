@@ -1267,8 +1267,12 @@ async function genericVlessSubscription(url, env) {
 			);
 		}
 
-		const topValue = Number(url.searchParams.get('top') || 20);
-		const top = Math.min(Math.max(Number.isFinite(topValue) ? Math.trunc(topValue) : 20, 1), 100);
+		const defaultTop = (() => {
+			const fromEnv = Number(env.BEST_IP_MAX);
+			return Number.isFinite(fromEnv) && fromEnv > 0 ? Math.trunc(fromEnv) : 30;
+		})();
+		const topValue = Number(url.searchParams.get('top') || defaultTop);
+		const top = Math.min(Math.max(Number.isFinite(topValue) ? Math.trunc(topValue) : defaultTop, 1), 100);
 		const minSpeedValue = Number(url.searchParams.get('minSpeed') || 0);
 		const minSpeed = Number.isFinite(minSpeedValue) ? Math.max(minSpeedValue, 0) : 0;
 		const csvUrl = env.BEST_IP_CSV || DEFAULT_BEST_IP_CSV;

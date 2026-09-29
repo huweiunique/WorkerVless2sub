@@ -98,3 +98,41 @@ test('转换请求使用有效的临时 UUID，并在响应中恢复原 UUID', a
     globalThis.fetch = originalFetch;
   }
 });
+test('订阅 top 默认使用 BEST_IP_MAX，未配置时为 30，并可被 URL 覆盖', async () => {
+  const originalFetch = globalThis.fetch;
+  const csvRows = Array.from({ length: 40 }, (_, index) => {
+    const ip = `104.18.${index}.${index + 1}`;
+    return `${ip},4,4,0.00,${70 + index}, ${40 - index},SIN`;
+  }).join('\n');
+  const csv = `IP 地址,已发送,已接收,丢包率,平均延迟,下载速度(MB/s),地区码\n${csvRows}`;
+
+  const countNodes = async (env, search) => {
+    globalThis.fetch = async input => {
+      const url = String(input);
+      if (url === 'https://fixture.example/ips.csv') return new Response(csv);
+      if (url === 'https://fixture.example/fixed.txt') return new Response('');
+      throw new Error('unexpected fetch: ' + url);
+    };
+    const request = new URL('http://localhost:8787/sub');
+    request.searchParams.set('node64', Buffer.from('vless://00000000-0000-4000-8000-000000000001@origin.example.com:443?security=tls&type=ws').toString('base64url'));
+    if (search) {
+      for (const [key, value] of Object.entries(search)) request.searchParams.set(key, value);
+    }
+    const response = await worker.fetch(new Request(request), {
+      BEST_IP_CSV: 'https://fixture.example/ips.csv',
+      FIXED_ADDRESSES_URL: 'https://fixture.example/fixed.txt',
+      ...env
+    });
+    assert.equal(response.status, 200);
+    return Buffer.from(await response.text(), 'base64').toString('utf8').trim().split('\n').filter(Boolean).length;
+  };
+
+  try {
+    assert.equal(await countNodes({}, null), 30, '默认 BEST_IP_MAX=30');
+    assert.equal(await countNodes({ BEST_IP_MAX: '12' }, null), 12, '读取部署环境变量 BEST_IP_MAX');
+    assert.equal(await countNodes({ BEST_IP_MAX: '12' }, { top: '5' }), 5, 'URL top 覆盖默认值');
+    assert.equal(await countNodes({ BEST_IP_MAX: '0' }, null), 30, '非法 BEST_IP_MAX 回退 30');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
