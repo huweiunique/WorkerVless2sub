@@ -156,6 +156,7 @@ try {
 
     # 第一轮：默认 IP 池，最多测出 MaxNodes 条合格结果
     Invoke-Cfst -Label "默认池" -Arguments @(
+        "-httping",
         "-tl", "$MaxLatency",
         "-tlr", "0",
         "-sl", "$MinSpeed",
@@ -185,6 +186,7 @@ try {
         Set-Content -Path $prevIpsFile -Value $prevIps -Encoding UTF8
         try {
             Invoke-Cfst -Label "上一轮 IP 复测" -Arguments @(
+                "-httping",
                 "-f", $prevIpsFile,
                 "-tl", "$MaxLatency",
                 "-tlr", "0",

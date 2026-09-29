@@ -1136,7 +1136,9 @@ function parseCloudflareSpeedTestCsv(text, top, minSpeed) {
 
 	if (lines.length < 2) return [];
 
-	const header = lines[0].split(',').map(x => x.trim());
+	// cfst 输出不带引号，PowerShell Export-Csv 会给这些字段加引号。
+	const parseRow = line => line.split(',').map(cell => cell.trim().replace(/^"(.*)"$/, '$1'));
+	const header = parseRow(lines[0]);
 	const ipIndex = header.findIndex(x => /^(IP 地址|IP|地址)$/i.test(x) || x.toUpperCase().includes('IP'));
 	const latencyIndex = header.findIndex(x => x.includes('平均延迟') || /latency/i.test(x));
 	const speedIndex = header.findIndex(x => x.includes('下载速度') || /speed/i.test(x));
@@ -1145,7 +1147,7 @@ function parseCloudflareSpeedTestCsv(text, top, minSpeed) {
 	if (ipIndex < 0) throw new Error('CloudflareSpeedTest CSV 缺少 IP 列');
 
 	return lines.slice(1).map((line, index) => {
-		const columns = line.split(',').map(x => x.trim());
+		const columns = parseRow(line);
 		const ip = columns[ipIndex];
 		const speed = speedIndex >= 0 ? Number(columns[speedIndex]) : 0;
 		const latency = latencyIndex >= 0 ? columns[latencyIndex] : '';

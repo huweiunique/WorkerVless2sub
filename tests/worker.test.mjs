@@ -5,6 +5,43 @@ import test from 'node:test';
 const source = await readFile(process.env.WORKER_TEST_SOURCE || new URL('../_worker.js', import.meta.url), 'utf8');
 const worker = (await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`)).default;
 
+test('CSV 节点保留地区代码、延迟和速度，兼容 PowerShell 导出的引号', async () => {
+  const originalFetch = globalThis.fetch;
+  const rows = [
+    ['IP 地址', '已发送', '已接收', '丢包率', '平均延迟', '下载速度(MB/s)', '地区码'],
+    ['192.0.2.1', '4', '4', '0.00', '85.00', '12.50', 'NRT'],
+    ['192.0.2.2', '4', '4', '0.00', '90.00', '10.00', 'SIN'],
+    ['192.0.2.3', '4', '4', '0.00', '95.00', '8.00', '']
+  ];
+  try {
+    for (const quoted of [false, true]) {
+      const csv = (quoted ? '\uFEFF' : '') + rows.map(row => row.map(cell => quoted ? `"${cell}"` : cell).join(',')).join('\r\n');
+      globalThis.fetch = async input => {
+        if (String(input) === 'https://fixture.example/ips.csv') return new Response(csv);
+        assert.equal(String(input), 'https://fixture.example/fixed.txt');
+        return new Response('');
+      };
+      const request = new URL('http://localhost:8787/sub');
+      request.searchParams.set('node', 'vless://00000000-0000-4000-8000-000000000001@origin.example.com:443?security=tls&type=ws#测试节点');
+      request.searchParams.set('minSpeed', '5');
+      const response = await worker.fetch(new Request(request), {
+        BEST_IP_CSV: 'https://fixture.example/ips.csv',
+        FIXED_ADDRESSES_URL: 'https://fixture.example/fixed.txt'
+      });
+      assert.equal(response.status, 200);
+      const nodes = Buffer.from(await response.text(), 'base64').toString('utf8').trim().split('\n').map(line => new URL(line));
+      assert.deepEqual(nodes.map(node => node.hostname), ['192.0.2.1', '192.0.2.2', '192.0.2.3']);
+      assert.deepEqual(nodes.map(node => decodeURIComponent(node.hash.slice(1))), [
+        '测试节点-NRT-85.00ms-12.5MB/s',
+        '测试节点-SIN-90.00ms-10MB/s',
+        '测试节点-95.00ms-8MB/s'
+      ]);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('通用订阅清理 TLS 的 REALITY 参数，同时保留 REALITY 参数及连接配置', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async input => {
