@@ -11,7 +11,8 @@ let DLS = 7;
 let remarkIndex = 1;//CSV备注所在列偏移量
 
 let subConverter = 'SUBAPI.cmliussss.net';
-let subConfig = atob('aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2NtbGl1L0FDTDRTU1IvbWFpbi9DbGFzaC9jb25maWcvQUNMNFNTUl9PbmxpbmVfRnVsbF9NdWx0aU1vZGUuaW5p');
+const DEFAULT_SUBCONFIG = 'https://raw.githubusercontent.com/DustinWin/ruleset_geodata/main/rule_templates/DustinWin_Full.ini';
+let subConfig = DEFAULT_SUBCONFIG;
 let subProtocol = 'https';
 let noTLS = 'false';
 let link;
@@ -893,14 +894,12 @@ async function subHtml(request) {
 					<div class="input-group" id="configGroup">
 						<label for="configPreset">策略配置</label>
 						<select id="configPreset" onchange="toggleCustomConfig(); saveFormState()">
-							<option value="">默认配置（ACL4SSR Full MultiMode）</option>
-							<option value="acl4ssr-multimode">ACL4SSR Full MultiMode</option>
-							<option value="acl4ssr-full">ACL4SSR Full</option>
-							<option value="enihsyou">enihsyou subconverter-config</option>
-							<option value="clashcustomrule">ClashCustomRule</option>
+							<option value="">${subConfig === DEFAULT_SUBCONFIG ? '默认配置（DustinWin Full）' : '默认配置（部署环境指定）'}</option>
+							${Object.entries(SUBCONFIG_PRESETS).map(([id, preset]) => '<option value="' + id + '">' + preset.label + '</option>').join('\n')}
 							<option value="custom">自定义配置 URL</option>
 						</select>
 						<input type="url" id="configUrl" placeholder="远程 .ini URL，例如 https://raw.githubusercontent.com/.../config.ini" style="display:none; margin-top:10px;" oninput="saveFormState()">
+						<p style="font-size:12px; line-height:1.6; margin-top:8px;">内置模板面向 Mihomo；Full / Lite 的广告组含 PASS，其他客户端需确认兼容性。更换模板不会增加节点协议支持。</p>
 					</div>
 					
 					<button onclick="generateLink()">生成优选订阅</button>
@@ -926,6 +925,7 @@ async function subHtml(request) {
 	
 				<script>
 					const STORAGE_KEY = 'worker-vless2sub-form-v1';
+					const LEGACY_PRESET_ALIASES = ${JSON.stringify(LEGACY_SUBCONFIG_PRESETS)};
 
 					function saveFormState() {
 						try {
@@ -943,8 +943,14 @@ async function subHtml(request) {
 							const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
 							if (saved.link) document.getElementById('link').value = saved.link;
 							if (saved.format) document.getElementById('format').value = saved.format;
-							if (saved.configPreset !== undefined) document.getElementById('configPreset').value = saved.configPreset;
+							if (saved.configPreset !== undefined) {
+								const select = document.getElementById('configPreset');
+								const preset = Object.prototype.hasOwnProperty.call(LEGACY_PRESET_ALIASES, saved.configPreset)
+									? LEGACY_PRESET_ALIASES[saved.configPreset] : saved.configPreset;
+								select.value = Array.from(select.options).some(option => option.value === preset) ? preset : '';
+							}
 							if (saved.configUrl) document.getElementById('configUrl').value = saved.configUrl;
+							if (Object.prototype.hasOwnProperty.call(LEGACY_PRESET_ALIASES, saved.configPreset)) saveFormState();
 						} catch (e) {}
 						updateConfigVisibility();
 						toggleCustomConfig();
@@ -1103,12 +1109,26 @@ async function subHtml(request) {
 const DEFAULT_BEST_IP_CSV = 'https://raw.githubusercontent.com/huweiunique/WorkerVless2sub/main/cloudflare-result.csv';
 const DEFAULT_FIXED_ADDRESSES_URL = 'https://raw.githubusercontent.com/huweiunique/WorkerVless2sub/main/fixed-addresses.txt';
 
+// Live upstream templates and their maintained rule releases; no bundled stale copies.
 const SUBCONFIG_PRESETS = {
-  'acl4ssr-multimode': 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini',
-  'acl4ssr-full': 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full.ini',
-  'enihsyou': 'https://raw.githubusercontent.com/enihsyou/subconverter/main/subconverter-config.ini',
-  'clashcustomrule': 'https://raw.githubusercontent.com/chinnsenn/ClashCustomRule/master/config/subconverter.ini'
+  'dustinwin-full': { label: 'DustinWin Full（完整分流 / 去广告）', url: DEFAULT_SUBCONFIG },
+  'dustinwin-lite': { label: 'DustinWin Lite（精简分流 / 去广告）', url: 'https://raw.githubusercontent.com/DustinWin/ruleset_geodata/main/rule_templates/DustinWin_Lite.ini' }
 };
+
+// Keep previously generated preset URLs working without fetching retired templates.
+// Explicit config URLs and deployment SUBCONFIG overrides remain user-controlled.
+const LEGACY_SUBCONFIG_PRESETS = {
+  'acl4ssr-multimode': 'dustinwin-full',
+  'acl4ssr-full': 'dustinwin-full',
+  'enihsyou': 'dustinwin-full',
+  'clashcustomrule': 'dustinwin-full'
+};
+
+function resolveSubconfigPreset(preset) {
+  const key = Object.prototype.hasOwnProperty.call(LEGACY_SUBCONFIG_PRESETS, preset)
+    ? LEGACY_SUBCONFIG_PRESETS[preset] : preset;
+  return Object.prototype.hasOwnProperty.call(SUBCONFIG_PRESETS, key) ? SUBCONFIG_PRESETS[key].url : null;
+}
 
 function base64UrlToUtf8(value) {
 	const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
@@ -1349,13 +1369,14 @@ async function genericVlessSubscription(url, env) {
 			+ '&insert=false&emoji=true&list=false&tfo=false&scv=false&fdn=false&sort=false&new_name=true';
 		const configUrlParam = url.searchParams.get('config');
 		const configPreset = url.searchParams.get('configPreset');
-		let converterConfig = configUrlParam || (configPreset ? SUBCONFIG_PRESETS[configPreset] : null) || env.SUBCONFIG || subConfig;
+		const presetConfig = configPreset ? resolveSubconfigPreset(configPreset) : null;
+		const converterConfig = configUrlParam || presetConfig || env.SUBCONFIG || DEFAULT_SUBCONFIG;
 		if (configUrlParam) {
 			let parsedConfigUrl;
 			try { parsedConfigUrl = new URL(configUrlParam); } catch { throw new Error('config 必须是有效的远程 URL'); }
 			if (!['http:', 'https:'].includes(parsedConfigUrl.protocol)) throw new Error('config 仅支持 http/https 远程 URL');
 		}
-		if (configPreset && !SUBCONFIG_PRESETS[configPreset]) throw new Error('未知的 configPreset');
+		if (configPreset && !presetConfig) throw new Error('未知的 configPreset');
 		if (converterConfig) converterUrl += '&config=' + encodeURIComponent(converterConfig);
 		if (target === 'surge') converterUrl += '&ver=4&udp=false&expand=true';
 
@@ -1429,7 +1450,7 @@ export default {
 		} else {
 			subConverter = subConverter.split("//")[1] || subConverter;
 		}
-		subConfig = env.SUBCONFIG || subConfig;
+		subConfig = env.SUBCONFIG || DEFAULT_SUBCONFIG;
 		FileName = env.SUBNAME || FileName;
 		socks5DataURL = env.SOCKS5DATA || socks5DataURL;
 		if (env.CMPROXYIPS) 匹配PROXYIP = await 整理(env.CMPROXYIPS);;

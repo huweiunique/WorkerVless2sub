@@ -55,6 +55,22 @@ https://你的订阅域名/sub?node64=xxxxx&top=30&minSpeed=5
 
 Shadowrocket 导出 JSON 中的 `data` 可能包含完整订阅来源 URL（包括 `node64` 和访问 token），这是客户端保存的信息，不是本生成器额外输出的节点字段。对外分享导出文件时，除替换 `password` 外，也应清空 `data`；正常订阅关联由客户端维护。清空导出文件中的字段不会撤销已分享的凭据。隐藏来源 URL 中的节点信息需要另行设计服务端存储，不能直接删除 `node64` 或 token，否则会影响订阅生成或鉴权。
 
+### 策略配置（DustinWin）
+
+网页下拉内置以下持续更新的远程 INI，默认使用 **DustinWin Full**：
+
+- `dustinwin-full`：[Full](https://raw.githubusercontent.com/DustinWin/ruleset_geodata/main/rule_templates/DustinWin_Full.ini)，包含 AI、流媒体、游戏平台、地区自动测速及国内外分流。
+- `dustinwin-lite`：[Lite](https://raw.githubusercontent.com/DustinWin/ruleset_geodata/main/rule_templates/DustinWin_Lite.ini)，保留 AI、基础服务和国内外分流，减少独立流媒体/游戏平台分组。
+- 自定义配置 URL：继续支持自己的远程 INI。
+
+通用 VLESS 入口可用 `&format=clash&configPreset=dustinwin-full` 或 `&format=clash&configPreset=dustinwin-lite` 指定。解析优先级仍为：显式 `config` URL → 指定 `configPreset` → 环境变量 `SUBCONFIG` → DustinWin Full。内置链接跟随上游 `main` 和其规则发布源，实际刷新频率也取决于转换后端缓存及客户端更新订阅的频率。
+
+旧下拉项已移除。浏览器保存的 `acl4ssr-multimode`、`acl4ssr-full`、`enihsyou`、`clashcustomrule` 选择会迁移到 Full；已有订阅 URL 中的这些旧 `configPreset` 也会转用 Full，不再请求旧模板。显式 `config=` 和部署时自设的 `SUBCONFIG` 不会被静默替换；若它们仍指向旧源，请清空覆盖项或改成上述 DustinWin URL。
+
+Full/Lite 保留自动测速，不包含旧 MultiMode 的故障转移或负载均衡。内置模板面向 Mihomo，广告组包含 `PASS`，其他内核及客户端需验证兼容性；本次替换不会增加 Surge 等客户端对 VLESS 的支持。Base64 / Shadowrocket 原始节点订阅不使用 INI。
+
+本地回归测试：`node --test tests/worker.test.mjs tests/config-presets.test.mjs`；容器更新脚本的隔离检查：`bash tests/build.test.sh`。
+
 ### 优选 IP 数据源
 
 默认读取本仓库：
@@ -329,7 +345,7 @@ CloudflareSpeedTest 官方参数中，`-tl` 是平均延迟上限、`-tlr 0` 会
 | TGTOKEN | `6894123456:XXXXXXXXXX0qExVsBPUhHDAbXXXXXqWXgBA` | 发送TG通知的机器人token | 
 | TGID | `6946912345` | 接收TG通知的账户数字ID | 
 | SUBAPI | `subapi.cmliussss.net` | clash、singbox等 订阅转换后端 | 
-| SUBCONFIG | [https://raw.github.../ACL4SSR_Online_Full_MultiMode.ini](https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_Full_MultiMode.ini) | clash、singbox等 订阅转换配置文件 | 
+| SUBCONFIG | [DustinWin_Full.ini](https://raw.githubusercontent.com/DustinWin/ruleset_geodata/main/rule_templates/DustinWin_Full.ini) | clash、singbox等 订阅转换配置文件 |
 | SUBNAME | `优选订阅生成器` | 订阅生成器名称 | 
 | ICO | `https://raw.cmliussss.com/favicon.ico` | 网站图标 |
 | PNG | `https://raw.cmliussss.com/img/CM512.png` | 网站LOGO | 

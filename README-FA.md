@@ -191,7 +191,7 @@ https://sub.cmliussss.workers.dev/sub?format=singbox&host=edgetunnel-2z2.pages.d
 | TGTOKEN | `6894123456:XXXXXXXXXX0qExVsBPUhHDAbXXXXXqWXgBA` | توکن ربات تلگرام واسه ارسال اعلان‌ها | 
 | TGID | `6946912345` | شناسه عددی حساب تلگرام واسه دریافت اعلان‌ها | 
 | SUBAPI | `subapi.fxxk.dedyn.io` | بک‌اند تبدیل اشتراک واسه clash، singbox و غیره | 
-| SUBCONFIG | [https://raw.github.../ACL4SSR_Online_Full_MultiMode.ini](https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_Full_MultiMode.ini) | فایل پیکربندی تبدیل اشتراک واسه clash، singbox و غیره | 
+| SUBCONFIG | [DustinWin_Full.ini](https://raw.githubusercontent.com/DustinWin/ruleset_geodata/main/rule_templates/DustinWin_Full.ini) | فایل پیکربندی تبدیل اشتراک واسه clash، singbox و غیره |
 | SUBNAME | `WorkerVless2sub` | اسم تولیدکننده اشتراک | 
 | SOCKS5DATA | [https://raw.github.../socks5Data](https://raw.githubusercontent.com/cmliu/WorkerVless2sub/main/socks5Data) | پول پروکسی Socks5 | 
 | PS | `【لطفاً تست سرعت نکنید】` | پیام یادداشت واسه اسم گره | 
