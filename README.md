@@ -86,8 +86,7 @@ IP 地址,已发送,已接收,丢包率,平均延迟,下载速度(MB/s),地区�
 
 默认参数：
 
-- 延迟初筛默认 TCPing；下载测速地址默认为约 300MB 的公益文件（`BEST_IP_TEST_URL` 可覆盖）。小文件（如低于 100MB）在高带宽下会因慢启动严重低估速度，官方 `speed.cloudflare.com` 超过约 95MB 会 403，因此不用作默认地址。
-- 不默认启用 HTTPing：公益大文件多为未缓存 `DYNAMIC`，HTTPing 延迟会虚高并被延迟上限误杀。需要 HTTPing 时设 `BEST_IP_HTTPING=1`，并适当放宽 `-MaxLatency`。地区码仍可从下载响应头解析。
+- 延迟初筛默认 HTTPing（设 `BEST_IP_HTTPING=0` 可退回 TCPing）。下载测速地址默认为约 200MB 且实测 `CF-Cache-Status: HIT` 的 OpenBSD 公益文件（`BEST_IP_TEST_URL` 可覆盖）。优先可缓存大文件：小文件测不满高带宽，未缓存 `DYNAMIC` 回源会抬高 HTTPing 延迟，官方 `speed.cloudflare.com` 过大约 95MB 会 403。
 - 平均延迟 <= 200 ms
 - 丢包率 = 0
 - 下载速度 >= 5 MB/s

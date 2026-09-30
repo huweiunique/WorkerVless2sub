@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$CloudflareST = "",
     [Alias("Top")]
     [int]$MaxNodes = 0,
@@ -11,11 +11,11 @@ param(
 $ErrorActionPreference = "Stop"
 
 $TestUrl = $env:BEST_IP_TEST_URL
-# 官方 speed.cloudflare.com 超过约 95MB 会 403，小文件测不满高带宽。
-# 采用 CloudflareSpeedTest#168 公益地址：Parallels 300MB（Server: cloudflare）。
-if ([string]::IsNullOrWhiteSpace($TestUrl)) { $TestUrl = "https://download.parallels.com/desktop/v17/17.1.1-51537/ParallelsDesktop-17.1.1-51537.dmg" }
-# 该地址 DYNAMIC 未缓存，HTTPing 延迟会虚高并误杀节点；默认 TCPing 延迟 + 下载取地区码。
-$UseHttping = $env:BEST_IP_HTTPING -eq '1'
+# 优先可缓存大文件（CF-Cache-Status: HIT），避免 DYNAMIC 回源拖高 HTTPing 延迟。
+# 来源 CloudflareSpeedTest#168；小文件测不满高带宽，官方 speed.cloudflare.com 过大约 95MB 会 403。
+if ([string]::IsNullOrWhiteSpace($TestUrl)) { $TestUrl = "https://cloudflare.cdn.openbsd.org/pub/OpenBSD/7.9/src.tar.gz" }
+# 默认 HTTPing（与下载共用 -url）；设 BEST_IP_HTTPING=0 可退回 TCPing。
+$UseHttping = $env:BEST_IP_HTTPING -ne '0'
 
 function Resolve-MaxNodes {
     param([int]$Requested)
@@ -171,6 +171,7 @@ try {
         "-tlr", "0",
         "-sl", "$MinSpeed",
         "-dn", "$maxNodes",
+        "-p", "0",
         "-o", $workNewCsv
     ))
 
@@ -193,7 +194,9 @@ try {
     }
 
     if ($prevIps.Count -gt 0) {
-        Set-Content -Path $prevIpsFile -Value $prevIps -Encoding UTF8
+        # cfst 解析 IP 列表不容忍 UTF-8 BOM
+        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+        [System.IO.File]::WriteAllLines($prevIpsFile, [string[]]$prevIps, $utf8NoBom)
         try {
             Invoke-Cfst -Label "上一轮 IP 复测" -Arguments @($httpingArgs + @(
                 "-url", $TestUrl,
@@ -202,6 +205,7 @@ try {
                 "-tlr", "0",
                 "-sl", "$MinSpeed",
                 "-dn", "$($prevIps.Count)",
+                "-p", "0",
                 "-o", $workPrevCsv
             ))
             if (Test-Path $workPrevCsv) {
@@ -255,4 +259,10 @@ try {
 }
 finally {
     Pop-Location
+    $clearScript = Join-Path $PSScriptRoot "clear-cf-net.ps1"
+    if (Test-Path $clearScript) {
+        Write-Host ""
+        Write-Host "清理测速网络残留..."
+        & $clearScript
+    }
 }
