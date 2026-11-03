@@ -135,41 +135,62 @@ test('转换请求使用有效的临时 UUID，并在响应中恢复原 UUID', a
     globalThis.fetch = originalFetch;
   }
 });
-test('订阅 top 默认使用 BEST_IP_MAX，未配置时为 30，并可被 URL 覆盖', async () => {
-  const originalFetch = globalThis.fetch;
-  const csvRows = Array.from({ length: 40 }, (_, index) => {
-    const ip = `104.18.${index}.${index + 1}`;
-    return `${ip},4,4,0.00,${70 + index}, ${40 - index},SIN`;
-  }).join('\n');
-  const csv = `IP 地址,已发送,已接收,丢包率,平均延迟,下载速度(MB/s),地区码\n${csvRows}`;
+function measuredCsv(count) {
+  return 'IP,Sent,Received,Loss,Latency,Speed,Region\n' + Array.from({ length: count }, (_, index) =>
+    `192.0.2.${index + 1},4,4,0.00,${70 + index},${count - index},SIN`
+  ).join('\n');
+}
 
-  const countNodes = async (env, search) => {
-    globalThis.fetch = async input => {
-      const url = String(input);
-      if (url === 'https://fixture.example/ips.csv') return new Response(csv);
-      if (url === 'https://fixture.example/fixed.txt') return new Response('');
-      throw new Error('unexpected fetch: ' + url);
-    };
+async function measuredSubscription({ csv = measuredCsv(41), fixed = '', env = {}, search = {} } = {}) {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async input => {
+    if (String(input) === 'https://fixture.example/ips.csv') return new Response(csv);
+    assert.equal(String(input), 'https://fixture.example/fixed.txt');
+    return new Response(fixed);
+  };
+  try {
     const request = new URL('http://localhost:8787/sub');
     request.searchParams.set('node64', Buffer.from('vless://00000000-0000-4000-8000-000000000001@origin.example.com:443?security=tls&type=ws').toString('base64url'));
-    if (search) {
-      for (const [key, value] of Object.entries(search)) request.searchParams.set(key, value);
-    }
+    for (const [key, value] of Object.entries(search)) request.searchParams.set(key, value);
     const response = await worker.fetch(new Request(request), {
       BEST_IP_CSV: 'https://fixture.example/ips.csv',
-      FIXED_ADDRESSES_URL: 'https://fixture.example/fixed.txt',
-      ...env
+      FIXED_ADDRESSES_URL: 'https://fixture.example/fixed.txt', ...env
     });
     assert.equal(response.status, 200);
-    return Buffer.from(await response.text(), 'base64').toString('utf8').trim().split('\n').filter(Boolean).length;
-  };
-
-  try {
-    assert.equal(await countNodes({}, null), 30, '默认 BEST_IP_MAX=30');
-    assert.equal(await countNodes({ BEST_IP_MAX: '12' }, null), 12, '读取部署环境变量 BEST_IP_MAX');
-    assert.equal(await countNodes({ BEST_IP_MAX: '12' }, { top: '5' }), 5, 'URL top 覆盖默认值');
-    assert.equal(await countNodes({ BEST_IP_MAX: '0' }, null), 30, '非法 BEST_IP_MAX 回退 30');
+    return Buffer.from(await response.text(), 'base64').toString('utf8').trim().split('\n').filter(Boolean).map(link => new URL(link));
   } finally {
     globalThis.fetch = originalFetch;
   }
+}
+
+test('no top includes all 41 measured nodes regardless of BEST_IP_MAX', async () => {
+  for (const env of [{}, { BEST_IP_MAX: '12' }, { BEST_IP_MAX: '0' }]) {
+    assert.equal((await measuredSubscription({ env })).length, 41);
+  }
+  assert.equal((await measuredSubscription({ search: { top: '' } })).length, 41);
+  assert.equal((await measuredSubscription({ csv: measuredCsv(140), fixed: '192.0.2.200' })).length, 141);
+});
+
+test('explicit top retains limits, rounding, fallback and adds fixed nodes', async () => {
+  for (const [top, env, expected] of [
+    ['5', { BEST_IP_MAX: '12' }, 5], ['2.9', {}, 2], ['0', {}, 1], ['-2', {}, 1],
+    ['1000', {}, 100], ['invalid', { BEST_IP_MAX: '12' }, 12], ['invalid', { BEST_IP_MAX: '0' }, 30]
+  ]) {
+    const nodes = await measuredSubscription({ csv: measuredCsv(140), fixed: '192.0.2.200', env, search: { top } });
+    assert.equal(nodes.length, expected + 1, `top=${top}`);
+    assert.equal(nodes[0].hostname, '192.0.2.200');
+  }
+});
+
+test('all measured and fixed nodes merge with duplicate addresses removed', async () => {
+  const csv = measuredCsv(41) + '\n192.0.2.1,4,4,0.00,70,41,SIN';
+  const fixed = '# ignored\n192.0.2.1#fixed-first\n192.0.2.200\n192.0.2.200\n[2001:db8::1]#ipv6';
+  const nodes = await measuredSubscription({ csv, fixed });
+  assert.equal(nodes.length, 43);
+  assert.equal(new Set(nodes.map(node => node.hostname)).size, 43);
+  assert.equal(nodes[0].hostname, '192.0.2.1');
+  assert.match(decodeURIComponent(nodes[0].hash), /fixed-first/);
+  assert.ok(nodes.some(node => node.hostname === '[2001:db8::1]'));
+  const filtered = await measuredSubscription({ fixed: '192.0.2.200', search: { minSpeed: '40' } });
+  assert.equal(filtered.length, 3, 'speed filter affects measured nodes; fixed node remains');
 });

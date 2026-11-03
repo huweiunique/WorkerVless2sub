@@ -40,7 +40,7 @@ cloudflare-result.csv
 
 可选参数：
 
-- `top`：最多生成多少个优选节点，默认取部署环境变量 `BEST_IP_MAX`（未设置时为 30），最大 100。
+- `top`：可选的测速节点数量上限，显式指定时为 1–100；不指定或留空时包含测速列表全部记录，不受 `BEST_IP_MAX` 限制。固定节点始终参与合并，按地址和端口去重；`minSpeed` 过滤仍有效。`BEST_IP_MAX` 继续用于测速脚本保存结果的数量上限。
 - `minSpeed`：订阅端再次过滤 CloudflareSpeedTest 下载速度，默认 0。
 
 例如：
